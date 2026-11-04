@@ -19,10 +19,10 @@ pip install -r requirements.txt
 To collect new gesture samples, run the data collector and record a label from the webcam:
 
 ```bash
-python -m src/data_collector.py --gesture name --samples 300
+python -m src.data_collector --gesture name --samples 300
 ```
 
-Available gesture labels are defined in `src/data_collector.py`:
+Available gesture labels are defined in `src.data_collector.py`:
 
 - "wave",
 - "ok",
@@ -36,7 +36,7 @@ Use the space bar to start or pause recording, and press `Q` to exit.
 Once your dataset is ready, train the model:
 
 ```bash
-python -m src/train
+python -m src.train
 ```
 
 This script:
@@ -53,7 +53,7 @@ This script:
 To run the webcam recognition demo:
 
 ```bash
-python src/main.py
+python src.main.py
 ```
 
 Press `Q` in the video window to quit.
@@ -65,16 +65,16 @@ Press `Q` in the video window to quit.
 pip install -r requirements.txt
 
 # 2. Collect training data
-python -m src/data_collector --gesture wave --samples 300
-python -m src/data_collector --gesture ok --samples 300
-python -m src/data_collector --gesture two --samples 300
-python -m src/data_collector --gesture three --samples 300
+python -m src.data_collector --gesture wave --samples 300
+python -m src.data_collector --gesture ok --samples 300
+python -m src.data_collector --gesture two --samples 300
+python -m src.data_collector --gesture three --samples 300
 
 # 3. Train the model
-python -m src/train
+python -m src.train
 
 # 4. Run real-time recognition
-python -m src/main.py
+python -m src.main.py
 ```
 
 ## License

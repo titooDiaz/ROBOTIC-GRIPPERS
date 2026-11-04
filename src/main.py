@@ -2,6 +2,7 @@ from pathlib import Path
 import cv2
 import joblib
 import numpy as np
+import serial
 import torch
 from src.classifier import GestureClassifier
 from src.hand_detector import HAND_CONNECTIONS, HandDetector
@@ -110,16 +111,26 @@ def main():
     checkpoint, model, scaler, device = load_models()
     print("Loaded gesture classes:", checkpoint["class_names"])
     detector = HandDetector()
-    camera = cv2.VideoCapture(0)
+    camera = cv2.VideoCapture(1)
 
     if not camera.isOpened():
         detector.close()
         raise RuntimeError("Could not open the camera.")
 
     robot = None
+    robot_warning_interval = 2.0
+    last_robot_warning = 0.0
 
     try:
-        robot = RobotMovement()
+        try:
+            robot = RobotMovement()
+        except (serial.SerialException, OSError) as error:
+            print(
+                "ESP32 no encontrada. Conecta la ESP32 o cambia el puerto "
+                f"configurado. Detalle: {error}"
+            )
+            last_robot_warning = time.perf_counter()
+
         previous_time = time.perf_counter()
 
         while True:
@@ -164,8 +175,17 @@ def main():
                     np.linalg.norm(thumb - index)
                 )
 
-            # Update robot
-            angle = robot.update(distance, dt)
+            # Update robot when the ESP32 is available.
+            if robot is not None:
+                angle = robot.update(distance, dt)
+            else:
+                angle = 0.0
+                if current_time - last_robot_warning >= robot_warning_interval:
+                    print(
+                        "ESP32 no encontrada. Conecta la ESP32 o cambia el "
+                        "puerto configurado."
+                    )
+                    last_robot_warning = current_time
 
             # Display information
             draw_text(frame, gesture, confidence, coordinates)

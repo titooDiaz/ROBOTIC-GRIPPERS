@@ -14,6 +14,8 @@ MIN_ANGLE = 0.0
 MAX_ANGLE = 180.0
 
 SERIAL_PORT = "/dev/ttyACM0"
+#  /dev/ttyUSB0
+# /dev/ttyACM0
 BAUD_RATE = 115200
 
 SEND_INTERVAL = 0.05

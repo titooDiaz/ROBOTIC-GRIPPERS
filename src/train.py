@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import joblib
 import torch
 from torch import nn
 
@@ -12,6 +13,7 @@ EPOCHS = 100
 LEARNING_RATE = 0.001  # Step size h for Euler's method
 PATIENCE = 12
 MODEL_DIR = Path("models")
+SCALER_PATH = MODEL_DIR / "scaler.joblib"
 
 MODEL_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -23,6 +25,8 @@ print(f"Using device: {device}")
 
 # Load datasets
 train_loader, val_loader, test_loader, encoder, scaler = prepare_data()
+joblib.dump(scaler, SCALER_PATH)
+print(f"Scaler saved at: {SCALER_PATH}")
 
 num_classes = len(encoder.classes_)
 
@@ -50,7 +54,7 @@ history = {
 best_val_loss = float("inf")
 patience_counter = 0
 
-checkpoint_path = MODEL_DIR / "gesture_model_euler.pth"
+checkpoint_path = MODEL_DIR / "gesture_model.pth"
 
 
 # Euler parameter update
