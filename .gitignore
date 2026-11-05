@@ -18,7 +18,6 @@ data/processed/*
 !data/processed/.gitkeep
 
 # Trained models
-models/*
 !models/.gitkeep
 
 # Jupyter

@@ -1,103 +1,187 @@
 import time
 import serial
 
-# DIFFERENTIAL EQUATION SETTINGS
-# d(theta)/dt = K * (theta_desired - theta)
 
-K = 5.0
-MAX_REFERENCE = 100.0
+# SERIAL SETTINGS
+SERIAL_PORT = "/dev/ttyACM0"
+BAUD_RATE = 115200
+SEND_INTERVAL = 0.05
+
+
+# GRIPPER SETTINGS
+K_GRIPPER = 5.0
 
 MIN_DISTANCE_PX = 30.0
 MAX_DISTANCE_PX = 250.0
 
-MIN_ANGLE = 0.0
-MAX_ANGLE = 180.0
+GRIPPER_MIN_ANGLE = 0.0
+GRIPPER_MAX_ANGLE = 180.0
 
-SERIAL_PORT = "/dev/ttyACM0"
-#  /dev/ttyUSB0
-# /dev/ttyACM0
-BAUD_RATE = 115200
 
-SEND_INTERVAL = 0.05
+# VERTICAL MOVEMENT SETTINGS
+K_VERTICAL = 5.0
+
+VERTICAL_MIN_ANGLE = 0.0
+VERTICAL_MAX_ANGLE = 150.0
+
+SCREEN_MARGIN = 50
 
 
 class RobotMovement:
+
     def __init__(self):
+
         self.ser = serial.Serial(
             SERIAL_PORT,
             BAUD_RATE,
             timeout=0.01
         )
 
-        # The ESP32 may restart when the serial port opens.
         time.sleep(2)
         self.ser.reset_input_buffer()
-        self.current_angle = 0.0
-        self.last_sent_angle = None
+
+        # Current angles
+        self.gripper_angle = 0.0
+        self.vertical_angle = 0.0
+
+        # Last transmitted angles
+        self.last_gripper_sent = None
+        self.last_vertical_sent = None
+
         self.last_send_time = 0.0
+
         print("Robot connected successfully.")
 
-    def calculate_reference(self, distance):
-        """
-        Converts finger distance into a reference
-        between 0 and MAX_REFERENCE.
-        """
-        distance = max(MIN_DISTANCE_PX, min(distance, MAX_DISTANCE_PX))
+    # ==================================
+    # GRIPPER
+    # ==================================
+
+    def calculate_gripper_target(self, distance):
+
+        distance = max(
+            MIN_DISTANCE_PX,
+            min(distance, MAX_DISTANCE_PX)
+        )
+
         reference = (
             (distance - MIN_DISTANCE_PX)
             / (MAX_DISTANCE_PX - MIN_DISTANCE_PX)
-        ) * MAX_REFERENCE
-        return reference
-
-    def calculate_desired_angle(self, reference):
-        """
-        Linear relationship:
-        theta_desired = 180 * reference / MAX_REFERENCE
-        """
-        return 180.0 * reference / MAX_REFERENCE
-
-    def solve_euler(self, desired_angle, dt):
-        """
-        Differential equation:
-        d(theta)/dt = K * (theta_desired - theta)
-        Euler method:
-        theta_next = theta + K * error * dt
-        """
-        error = desired_angle - self.current_angle
-        dt = min(dt, 0.05)
-        self.current_angle += K * error * dt
-
-        self.current_angle = max(
-            MIN_ANGLE,
-            min(self.current_angle, MAX_ANGLE)
         )
-        return self.current_angle
 
-    def send_angle(self, angle):
-        """
-        Sends the calculated angle to the ESP32.
-        Avoids transmitting tiny changes.
-        """
+        return 180.0 * reference
+
+    # ==================================
+    # VERTICAL MOVEMENT
+    # ==================================
+
+    def calculate_vertical_target(self, hand_y, screen_height):
+
+        y_min = SCREEN_MARGIN
+        y_max = screen_height - SCREEN_MARGIN
+
+        # Keep the hand position inside the useful screen area
+        hand_y = max(y_min, min(hand_y, y_max))
+
+        # Top = 150 degrees
+        # Bottom = 0 degrees
+
+        reference = (y_max - hand_y) / (y_max - y_min)
+
+        return VERTICAL_MAX_ANGLE * reference
+
+    # ==================================
+    # EULER METHOD
+    # ==================================
+
+    def solve_euler(self, current_angle, desired_angle, k, dt):
+
+        dt = min(max(dt, 0.0), 0.05)
+
+        error = desired_angle - current_angle
+
+        next_angle = current_angle + k * error * dt
+
+        return max(0.0, min(next_angle, 180.0))
+
+    # ==================================
+    # SERIAL COMMUNICATION
+    # ==================================
+
+    def send_angles(self, gripper_angle, vertical_angle):
+
         now = time.monotonic()
+
         if now - self.last_send_time < SEND_INTERVAL:
             return
 
-        angle = int(round(angle))
-        if (self.last_sent_angle is None or abs(angle - self.last_sent_angle) >= 2):
-            self.ser.write(f"{angle}\n".encode())
-            self.last_sent_angle = angle
+        gripper = int(round(gripper_angle))
+        vertical = int(round(vertical_angle))
+
+        gripper_changed = (
+            self.last_gripper_sent is None
+            or abs(gripper - self.last_gripper_sent) >= 2
+        )
+
+        vertical_changed = (
+            self.last_vertical_sent is None
+            or abs(vertical - self.last_vertical_sent) >= 2
+        )
+
+        if gripper_changed or vertical_changed:
+
+            message = f"{gripper},{vertical}\n"
+
+            self.ser.write(message.encode())
+
+            self.last_gripper_sent = gripper
+            self.last_vertical_sent = vertical
+
             self.last_send_time = now
 
-    def update(self, distance, dt):
-        if distance is None:
-            return self.current_angle
-        reference = self.calculate_reference(distance)
-        desired_angle = self.calculate_desired_angle(reference)
-        angle = self.solve_euler(desired_angle, dt)
-        self.send_angle(angle)
-        return angle
+    # ==================================
+    # UPDATE BOTH MOTORS
+    # ==================================
+
+    def update(self, distance, hand_y, screen_height, dt):
+
+        # Keep the previous positions if no hand is detected
+        if distance is None or hand_y is None:
+            return self.gripper_angle, self.vertical_angle
+
+        # Calculate desired angles
+        desired_gripper = self.calculate_gripper_target(distance)
+
+        desired_vertical = self.calculate_vertical_target(
+            hand_y,
+            screen_height
+        )
+
+        # Solve both differential equations using Euler
+        self.gripper_angle = self.solve_euler(
+            self.gripper_angle,
+            desired_gripper,
+            K_GRIPPER,
+            dt
+        )
+
+        self.vertical_angle = self.solve_euler(
+            self.vertical_angle,
+            desired_vertical,
+            K_VERTICAL,
+            dt
+        )
+
+        # Send both angles to ESP32
+        self.send_angles(
+            self.gripper_angle,
+            self.vertical_angle
+        )
+
+        return self.gripper_angle, self.vertical_angle
 
     def close(self):
+
         if self.ser.is_open:
             self.ser.close()
+
         print("Robot disconnected.")

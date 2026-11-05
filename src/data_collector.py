@@ -34,7 +34,7 @@ def main():
     file_exists = CSV_PATH.exists() and CSV_PATH.stat().st_size > 0
 
     detector = HandDetector()
-    camera = cv2.VideoCapture(1)
+    camera = cv2.VideoCapture(0)
 
     if not camera.isOpened():
         detector.close()
