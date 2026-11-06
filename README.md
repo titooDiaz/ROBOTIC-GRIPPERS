@@ -48,6 +48,12 @@ This script:
 - saves the scaler to `models/scaler.joblib`
 - stores training metrics and visualization plots in `models/`
 
+## Adjusting settings
+
+Edit the values in [`settings.py`](settings.py) to adjust training, camera display,
+serial communication, and robot movement. The file contains a simple English
+description for every setting.
+
 ## Live inference
 
 To run the webcam recognition demo:

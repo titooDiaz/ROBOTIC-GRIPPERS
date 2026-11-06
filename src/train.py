@@ -1,21 +1,13 @@
-from pathlib import Path
-
 import joblib
 import torch
 from torch import nn
 
+import settings
 from src.dataset import prepare_data
 from src.classifier import GestureClassifier
 
 
-# Configuration
-EPOCHS = 100
-LEARNING_RATE = 0.001  # Step size h for Euler's method
-PATIENCE = 12
-MODEL_DIR = Path("models")
-SCALER_PATH = MODEL_DIR / "scaler.joblib"
-
-MODEL_DIR.mkdir(parents=True, exist_ok=True)
+settings.MODEL_DIR.mkdir(parents=True, exist_ok=True)
 
 
 # Select device
@@ -25,8 +17,8 @@ print(f"Using device: {device}")
 
 # Load datasets
 train_loader, val_loader, test_loader, encoder, scaler = prepare_data()
-joblib.dump(scaler, SCALER_PATH)
-print(f"Scaler saved at: {SCALER_PATH}")
+joblib.dump(scaler, settings.SCALER_PATH)
+print(f"Scaler saved at: {settings.SCALER_PATH}")
 
 num_classes = len(encoder.classes_)
 
@@ -54,7 +46,7 @@ history = {
 best_val_loss = float("inf")
 patience_counter = 0
 
-checkpoint_path = MODEL_DIR / "gesture_model.pth"
+checkpoint_path = settings.MODEL_DIR / "gesture_model.pth"
 
 
 # Euler parameter update
@@ -75,7 +67,7 @@ def euler_step(model, h):
 
 
 # Training loop
-for epoch in range(EPOCHS):
+for epoch in range(settings.EPOCHS):
     # Training
     model.train()
     train_loss_total = 0.0
@@ -95,7 +87,7 @@ for epoch in range(EPOCHS):
         loss.backward()
 
         # Explicit Euler update
-        euler_step(model, LEARNING_RATE)
+        euler_step(model, settings.LEARNING_RATE)
 
         train_loss_total += loss.item() * features.size(0)
 
@@ -134,7 +126,7 @@ for epoch in range(EPOCHS):
     history["val_accuracy"].append(val_accuracy)
 
     print(
-        f"Epoch [{epoch + 1:03d}/{EPOCHS}] "
+        f"Epoch [{epoch + 1:03d}/{settings.EPOCHS}] "
         f"Train Loss: {train_loss:.4f} | "
         f"Val Loss: {val_loss:.4f} | "
         f"Val Accuracy: {val_accuracy:.2%}"
@@ -153,7 +145,7 @@ for epoch in range(EPOCHS):
                 "input_size": 63,
                 "num_classes": num_classes,
                 "method": "explicit_euler",
-                "step_size": LEARNING_RATE,
+                "step_size": settings.LEARNING_RATE,
             },
             checkpoint_path
         )
@@ -164,7 +156,7 @@ for epoch in range(EPOCHS):
         patience_counter += 1
 
     # Early stopping
-    if patience_counter >= PATIENCE:
+    if patience_counter >= settings.PATIENCE:
         print("Early stopping: validation loss did not improve.")
         break
 

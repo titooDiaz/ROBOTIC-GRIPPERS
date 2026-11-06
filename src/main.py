@@ -1,5 +1,4 @@
 
-from pathlib import Path
 import time
 import cv2
 import joblib
@@ -7,28 +6,14 @@ import numpy as np
 import serial
 import torch
 
+import settings
 from src.classifier import GestureClassifier
 from src.hand_detector import HAND_CONNECTIONS, HandDetector
 from src.robot_movement import RobotMovement
 
 
-MODEL_PATH = Path("models/gesture_model.pth")
-SCALER_PATH = Path("models/scaler.joblib")
-
-CONFIDENCE_THRESHOLD = 0.60
-
-LIGHT = (220, 220, 220)
-HIGHLIGHT = (0, 220, 255)
-
-THUMB_TIP = 4
-INDEX_TIP = 8
-
-PALM_CENTER = 9
-
-SCREEN_MARGIN = 50
-
-HIGHLIGHT_NODES = set(range(1, THUMB_TIP + 1)) | set(
-    range(5, INDEX_TIP + 1)
+HIGHLIGHT_NODES = set(range(1, settings.THUMB_TIP + 1)) | set(
+    range(5, settings.INDEX_TIP + 1)
 )
 
 
@@ -38,7 +23,7 @@ def load_models():
     )
 
     checkpoint = torch.load(
-        MODEL_PATH,
+        settings.MODEL_PATH,
         map_location=device,
         weights_only=True
     )
@@ -51,7 +36,7 @@ def load_models():
     model.load_state_dict(checkpoint["model_state_dict"])
     model.eval()
 
-    return checkpoint, model, joblib.load(SCALER_PATH), device
+    return checkpoint, model, joblib.load(settings.SCALER_PATH), device
 
 
 def draw_landmarks(frame, results):
@@ -66,13 +51,13 @@ def draw_landmarks(frame, results):
 
         coordinates = points
         for start, end in HAND_CONNECTIONS:
-            cv2.line(frame, points[start], points[end], LIGHT, 2)
+            cv2.line(frame, points[start], points[end], settings.LIGHT, 2)
 
         for index, point in enumerate(points):
             color = (
-                HIGHLIGHT
-                if index in HIGHLIGHT_NODES or index == PALM_CENTER
-                else LIGHT
+                settings.HIGHLIGHT
+                if index in HIGHLIGHT_NODES or index == settings.PALM_CENTER
+                else settings.LIGHT
             )
 
             cv2.circle(frame, point, 5, color, -1)
@@ -109,7 +94,7 @@ def predict(hands, checkpoint, model, scaler, device):
     confidence = confidence.item()
     confidence_text = f"Confidence: {confidence:.1%}"
 
-    if confidence < CONFIDENCE_THRESHOLD:
+    if confidence < settings.CONFIDENCE_THRESHOLD:
         return "Unknown gesture", confidence_text
 
     return (
@@ -129,25 +114,25 @@ def draw_text(frame, gesture_text, confidence_text, coordinates, gripper_angle, 
 
     texts = [
         (gesture_text, (25, 40), 0.8, (0, 255, 0), 2),
-        (confidence_text, (25, 70), 0.6, LIGHT, 1),
-        (f"Gripper: {gripper_angle:.1f} degrees", (25, 105), 0.6, HIGHLIGHT, 2),
-        (f"Vertical: {vertical_angle:.1f} degrees", (25, 140), 0.6, HIGHLIGHT, 2),
+        (confidence_text, (25, 70), 0.6, settings.LIGHT, 1),
+        (f"Gripper: {gripper_angle:.1f} degrees", (25, 105), 0.6, settings.HIGHLIGHT, 2),
+        (f"Vertical: {vertical_angle:.1f} degrees", (25, 140), 0.6, settings.HIGHLIGHT, 2),
     ]
 
     if coordinates:
 
-        thumb_x, thumb_y = coordinates[THUMB_TIP]
-        index_x, index_y = coordinates[INDEX_TIP]
+        thumb_x, thumb_y = coordinates[settings.THUMB_TIP]
+        index_x, index_y = coordinates[settings.INDEX_TIP]
 
         distance = np.linalg.norm(
             np.array([thumb_x, thumb_y])
             - np.array([index_x, index_y])
         )
 
-        palm_x, palm_y = coordinates[PALM_CENTER]
+        palm_x, palm_y = coordinates[settings.PALM_CENTER]
 
         texts += [
-            (f"Finger distance: {distance:.1f} px", (25, 170), 0.55, LIGHT, 1),
+            (f"Finger distance: {distance:.1f} px", (25, 170), 0.55, settings.LIGHT, 1),
         ]
 
         cv2.circle(
@@ -169,7 +154,7 @@ def draw_text(frame, gesture_text, confidence_text, coordinates, gripper_angle, 
             thickness
         )
 
-    cv2.putText(frame, "Press Q to quit", (15, frame.shape[0] - 15), cv2.FONT_HERSHEY_SIMPLEX, 0.6, LIGHT, 1)
+    cv2.putText(frame, "Press Q to quit", (15, frame.shape[0] - 15), cv2.FONT_HERSHEY_SIMPLEX, 0.6, settings.LIGHT, 1)
 
 
 def main():
@@ -177,7 +162,7 @@ def main():
 
     print("Loaded gesture classes:", checkpoint["class_names"])
     detector = HandDetector()
-    camera = cv2.VideoCapture(0)
+    camera = cv2.VideoCapture(settings.CAMERA_INDEX)
 
     if not camera.isOpened():
         detector.close()
@@ -223,12 +208,12 @@ def main():
             if coordinates is not None:
 
                 # Finger distance for gripper
-                thumb = np.array(coordinates[THUMB_TIP], dtype=np.float32)
-                index = np.array(coordinates[INDEX_TIP], dtype=np.float32)
+                thumb = np.array(coordinates[settings.THUMB_TIP], dtype=np.float32)
+                index = np.array(coordinates[settings.INDEX_TIP], dtype=np.float32)
                 distance = float(np.linalg.norm(thumb - index))
 
                 # Palm center for vertical movement
-                hand_y = coordinates[PALM_CENTER][1]
+                hand_y = coordinates[settings.PALM_CENTER][1]
 
             # Update both servos
             if robot is not None:
