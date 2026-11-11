@@ -1,5 +1,7 @@
 # ROBOTIC GRIPPERS
 
+![Demo of the robotic grippers](images/robot_360_servos.gif)
+
 ## Overview
 
 ## Features
